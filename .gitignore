@@ -1,0 +1,49 @@
+# ─── Terraform ────────────────────────────────────────────────
+# Provider binaries and modules (hundreds of MB — never commit)
+**/.terraform/*
+
+# State files: may contain resource attributes and secrets in plaintext
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Variable files — these routinely hold secrets
+*.tfvars
+*.tfvars.json
+!example.tfvars
+
+# Plan output files (binary, may contain sensitive values)
+*.tfplan
+*.plan
+
+# CLI config that can contain credentials
+.terraformrc
+terraform.rc
+
+# Lock file: KEEP this one committed (intentionally not ignored)
+# .terraform.lock.hcl
+
+# ─── Secrets / keys ───────────────────────────────────────────
+*.pem
+*.key
+*.ppk
+.env
+.env.*
+credentials
+aws_credentials
+
+# ─── OS / editor ──────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
