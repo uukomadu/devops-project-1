@@ -1,4 +1,4 @@
-# DevOps Project 1 — Migrating a Legacy System to AWS
+# Migrating a Legacy System to AWS
 
 Terraform-provisioned AWS infrastructure hosting a WordPress site on a LAMP stack, built as a hands-on cloud migration exercise: move a legacy application off an aging physical server and onto managed cloud infrastructure.
 
