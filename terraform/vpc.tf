@@ -1,9 +1,9 @@
 # This Terraform configuration file defines an AWS VPC and a subnet within that VPC.
 resource "aws_vpc" "main" {
-  cidr_block       = "10.0.0.0/16"
-  instance_tenancy = "default"
-  enable_dns_support   = true   
-  enable_dns_hostnames = true 
+  cidr_block           = "10.0.0.0/16"
+  instance_tenancy     = "default"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
 
   tags = {
     Name = "Project1-VPC"
@@ -77,7 +77,7 @@ resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
   route {
-    cidr_block = "0.0.0.0/0"
+    cidr_block     = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.main.id # <- missing
   }
   tags = {

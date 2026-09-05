@@ -1,0 +1,35 @@
+# The checkov checks this repo's security gate fails the build on. One per
+# line; comments and blanks are ignored by scan.sh.
+#
+# This is the same allowlist as the terraform-security-gate in
+# https://github.com/uukomadu/infrastructure-guardrails, copied rather than
+# fetched so a run here is reproducible from this commit alone. It is an
+# allowlist on purpose: a gate that fires on every policy gets muted, one that
+# fires on a set someone chose and can defend gets fixed. Everything outside
+# it is still visible with `make scan-full`.
+
+# --- Remote state bucket (none in this repo yet; kept so the gate is ready) --
+CKV_AWS_21      # versioning enabled
+CKV_AWS_18      # access logging enabled
+CKV_AWS_145     # SSE-KMS by default
+CKV2_AWS_6      # public access block present
+
+# --- Network edge --------------------------------------------------------
+CKV_AWS_24      # no 0.0.0.0/0 ingress to port 22
+CKV_AWS_382     # no unrestricted egress
+
+# --- Compute -------------------------------------------------------------
+CKV_AWS_8       # root/EBS volume encrypted
+CKV_AWS_79      # IMDSv2 required (IMDSv1 disabled)
+CKV_AWS_126     # detailed monitoring enabled
+
+# --- IAM (none in this repo yet) -----------------------------------------
+CKV_AWS_62      # no full "*:*" administrative policy
+CKV_AWS_63      # no "*" as a statement action
+CKV_AWS_286     # no privilege-escalation paths
+CKV_AWS_355     # no "*" resource for restrictable actions
+CKV2_AWS_40     # no full IAM privileges
+
+# --- Storage -------------------------------------------------------------
+CKV_AWS_3       # EBS volume encrypted
+CKV_AWS_189     # EBS encrypted with a customer-managed key
