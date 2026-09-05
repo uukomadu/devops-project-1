@@ -51,26 +51,31 @@ Terraform-provisioned AWS infrastructure hosting a WordPress site on a LAMP stac
 | `aws_nat_gateway.main` + `aws_eip.nat` | Outbound-only internet for the private subnet |
 | `aws_route_table.public` / `.private` | Default routes to IGW and NAT respectively |
 | `aws_route_table_association.*` | Binds each subnet to its route table |
-| `aws_security_group.EC2_SG` | Instance firewall — HTTP, HTTPS, SSH in; all out |
+| `aws_security_group.EC2_SG` | Instance firewall — HTTP and HTTPS from anywhere, SSH from `admin_cidr` only; outbound 80 and 443 only |
 | `data.aws_ami.ubuntu` | Resolves the latest Canonical Ubuntu 24.04 AMI at plan time |
-| `aws_instance.project1_ec2_instance` | `t3.micro` running the LAMP stack |
+| `aws_instance.project1_ec2_instance` | `t3.micro` running the LAMP stack — IMDSv2 required, encrypted root volume, detailed monitoring |
 | `aws_eip.project1_eip` | Static public IP so the address survives stop/start |
 
 ## Prerequisites
 
-- Terraform ≥ 1.0
+- Terraform ≥ 1.0 (1.15.8 is what the lock file and CI use)
 - AWS CLI configured with credentials (`aws configure`)
 - An existing EC2 key pair in the target region (this config expects one named `1PU`)
+- Docker, if you want to run the security gate locally (`make scan`)
 
 ## Usage
 
 ```bash
 cd terraform
+cp example.tfvars terraform.tfvars   # set admin_cidr to your own IP as a /32
 
 terraform init
 terraform plan
 terraform apply
 ```
+
+`admin_cidr` has no default and rejects `0.0.0.0/0`, so `plan` stops with a
+validation error until a real address is given. `terraform.tfvars` is gitignored.
 
 Then connect and build the stack:
 
@@ -122,12 +127,94 @@ Finish the install at `http://<public-ip>`.
 ```
 terraform/
 ├── providers.tf     # AWS provider and version constraints
-├── variables.tf     # Input variables (region)
+├── variables.tf     # Input variables (region, admin_cidr)
+├── example.tfvars   # Copy to terraform.tfvars and edit
 ├── vpc.tf           # VPC, subnets, gateways, route tables
 ├── main.tf          # AMI lookup, EC2 instance, Elastic IP
 ├── iam.tf           # Security group
 └── outputs.tf       # VPC and subnet IDs
+checks.txt           # The checkov checks the build fails on
+scan.sh              # Runs them from a pinned Docker image
+Makefile             # scan, scan-full, fmt, validate, all
+output/              # Recorded output of a real run of the gate
+.github/workflows/   # The same three steps in CI
 ```
+
+## Security gate
+
+The Terraform is scanned with checkov 3.3.16 on every push and pull request,
+using the same 16-check allowlist as
+[infrastructure-guardrails/terraform-security-gate](https://github.com/uukomadu/infrastructure-guardrails/tree/main/terraform-security-gate).
+`make scan` runs it locally from the pinned image; `make scan-full` shows every
+finding, including the ones the build does not fail on.
+
+> **Scope, stated up front:** the gate is static analysis. Everything below was
+> verified with checkov, `terraform validate` and a read-only `terraform plan`;
+> the changes have not been applied to the account. The plan is recorded in
+> [`output/security-gate-observed.txt`](output/security-gate-observed.txt).
+
+### What it found in this code
+
+Running the gate against `main` before any changes: 5 of 16 checks failed,
+all in `iam.tf` and `main.tf`. An unfiltered scan reported 11.
+
+| Check | Finding | What changed |
+| --- | --- | --- |
+| `CKV_AWS_24` | SSH ingress from `0.0.0.0/0`. The rule's own description said "admin only"; the CIDR said everyone. | `cidr_blocks = [var.admin_cidr]`. The variable has no default and a validation block that rejects `0.0.0.0/0`, so the wildcard cannot come back through a tfvars file. |
+| `CKV_AWS_382` | Egress `-1` to `0.0.0.0/0`. | Two named rules: TCP 80 and TCP 443 outbound. That is what the provisioning steps use — apt through Ubuntu's EC2 mirrors is plain HTTP, WordPress downloads over HTTPS. DNS to the VPC resolver is not subject to security group rules and needs no rule. |
+| `CKV_AWS_79` | IMDSv1 allowed. | `metadata_options` with `http_tokens = "required"` and hop limit 1. A WordPress site is a stack of PHP plugins, which is exactly where SSRF bugs live; IMDSv2 turns "read the instance credentials" into a 401. |
+| `CKV_AWS_8` | Unencrypted root volume, which is where MySQL and the WordPress tree live. | `root_block_device { encrypted = true }`, `gp3`. |
+| `CKV_AWS_126` | Detailed monitoring off. | `monitoring = true`. This is a cost decision more than a security one: seven CloudWatch metrics per instance at the per-metric rate, small next to the NAT gateway. Enabled because one-minute metrics are worth it when this instance is the whole site. |
+
+Two things to know before applying this to an instance that already exists:
+
+- **`root_block_device` is a replacing change.** Terraform destroys and recreates
+  the instance; the MySQL data and the WordPress tree on the old root volume go
+  with it. Snapshot first, or apply this on a fresh stack. Note that the AMI
+  lookup uses `most_recent = true`, so any plan on a stale instance may already
+  be a replacement for that reason alone.
+- **The narrowed egress was not exercised against a live instance.** Port 80 and
+  443 outbound covers `apt` and `wget` as written in the README. If something
+  else turns out to need outbound access, add a named rule; do not reopen `-1`.
+
+### What the gate did not catch, and why that is fine
+
+Alongside the scan, `terraform fmt -check` exited 3 on `main.tf` and `vpc.tf`
+(alignment only; fixed) and `terraform validate` was already clean.
+
+After the fixes, `make scan-full` reports 5 findings outside the allowlist. None
+of them fail the build, and each has a reason:
+
+| Check | Why it is out of scope |
+| --- | --- |
+| `CKV_AWS_260` ingress `0.0.0.0/0` to port 80 | Intentional. It is a public web server. Written down here rather than suppressed inline, so the same check still fires if it ever appears on a database security group. |
+| `CKV_AWS_135` EBS optimized | `t3` instances are EBS-optimized by default; the check does not model that. |
+| `CKV2_AWS_41` IAM role on instance | The instance does not call AWS APIs; there is nothing for a role to grant. Would be required the moment it does (S3 backups, SSM). |
+| `CKV2_AWS_12` default SG restricted | Genuine gap. The default security group is never attached here, but restricting it is cheap and belongs in the roadmap. |
+| `CKV2_AWS_11` VPC flow logs | Genuine gap with a real per-GB cost, so it is an org logging decision rather than a default for a single-instance site. |
+
+### Proving the validation works
+
+```
+$ terraform plan -var admin_cidr=0.0.0.0/0
+Error: Invalid value for variable
+admin_cidr must be a valid IPv4 CIDR and must not be 0.0.0.0/0. Use your own
+address as a /32.
+exit 1
+
+$ terraform plan -var-file=example.tfvars
+Plan: 13 to add, 0 to change, 0 to destroy.
+exit 0
+```
+
+### Verified against
+
+Terraform 1.15.8 · checkov 3.3.16 (pinned in `scan.sh`) · Docker 29.7.2 · macOS 14 arm64
+· AWS provider 6.61.0, locked for `linux_amd64`, `darwin_arm64` and `darwin_amd64`
+so CI and a laptop run `init` against the same lock file without `-upgrade`. A
+fourth hash, `linux_arm64`, was added by `make validate` itself: the Terraform
+image on an Apple Silicon host is a Linux arm64 binary, and `init` records the
+hash for whatever platform it runs on.
 
 ## Notes and gotchas
 
@@ -153,7 +240,8 @@ Note that deleting a NAT gateway does **not** release its Elastic IP — `terraf
 
 ## Roadmap
 
-- [ ] Restrict SSH ingress to a single admin IP instead of `0.0.0.0/0`
+- [x] Restrict SSH ingress to a single admin IP instead of `0.0.0.0/0`
+- [ ] Restrict the VPC's default security group (`CKV2_AWS_12`)
 - [ ] Add a second subnet in another AZ (RDS requires a subnet group spanning two)
 - [ ] Move MySQL to RDS in the private subnet
 - [ ] Add HTTPS via ACM and an Application Load Balancer

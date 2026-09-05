@@ -1,0 +1,37 @@
+name: security-gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: fmt, validate, checkov gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.8
+          terraform_wrapper: false
+
+      - name: terraform fmt
+        run: terraform -chdir=terraform fmt -check -recursive -no-color
+
+      # Runs against the committed lock file, which is locked for linux_amd64
+      # as well as darwin, so this resolves without -upgrade on the runner.
+      - name: terraform validate
+        run: |
+          terraform -chdir=terraform init -backend=false -input=false -no-color >/dev/null
+          terraform -chdir=terraform validate -no-color
+
+      # Same script and pinned image as `make scan` locally.
+      - name: checkov gate
+        run: ./scan.sh

@@ -1,0 +1,205 @@
+Recorded output of the security gate against terraform/, before and after the
+changes on the security-gate branch.
+Host: macOS 14 (darwin/arm64) - Docker 29.7.2 - checkov 3.3.16 pinned in scan.sh
+      Terraform 1.15.8 - AWS provider 6.61.0
+Date: 2026-09-05
+ANSI colour stripped; otherwise verbatim. Nothing here was applied to AWS. The
+three `terraform plan` runs at the end made read-only API calls only (the AMI
+lookup) and were run without a backend, so no state was written anywhere.
+----------------------------------------------------------------------------
+
+============================================================================
+BEFORE (main at b439e3b)
+============================================================================
+
+--- gated scan: the 16 checks in checks.txt, run directly as the docker
+--- command scan.sh now wraps, since scan.sh did not exist yet
+$ docker run --rm -v "$PWD/terraform:/tf:ro" bridgecrew/checkov:3.3.16 \
+    -d /tf --framework terraform --quiet --compact --skip-path .terraform \
+    -c CKV_AWS_21,CKV_AWS_18,CKV_AWS_145,CKV2_AWS_6,CKV_AWS_24,CKV_AWS_382,CKV_AWS_8,CKV_AWS_79,CKV_AWS_126,CKV_AWS_62,CKV_AWS_63,CKV_AWS_286,CKV_AWS_355,CKV2_AWS_40,CKV_AWS_3,CKV_AWS_189
+
+terraform scan results:
+
+Passed checks: 0, Failed checks: 5, Skipped checks: 0
+
+Check: CKV_AWS_382: "Ensure no security groups allow egress from 0.0.0.0:0 to port -1"
+	FAILED for resource: aws_security_group.EC2_SG
+	File: /iam.tf:2-39
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/bc-aws-382
+Check: CKV_AWS_24: "Ensure no security groups allow ingress from 0.0.0.0:0 to port 22"
+	FAILED for resource: aws_security_group.EC2_SG
+	File: /iam.tf:2-39
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-1-port-security
+Check: CKV_AWS_79: "Ensure Instance Metadata Service Version 1 is not enabled"
+	FAILED for resource: aws_instance.project1_ec2_instance
+	File: /main.tf:18-28
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/bc-aws-general-31
+Check: CKV_AWS_126: "Ensure that detailed monitoring is enabled for EC2 instances"
+	FAILED for resource: aws_instance.project1_ec2_instance
+	File: /main.tf:18-28
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/ensure-that-detailed-monitoring-is-enabled-for-ec2-instances
+Check: CKV_AWS_8: "Ensure all data stored in the Launch configuration or instance Elastic Blocks Store is securely encrypted"
+	FAILED for resource: aws_instance.project1_ec2_instance
+	File: /main.tf:18-28
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/general-13
+
+exit code: 1
+
+--- unfiltered scan: every checkov policy
+$ docker run --rm -v "$PWD/terraform:/tf:ro" bridgecrew/checkov:3.3.16 \
+    -d /tf --framework terraform --quiet --compact --skip-path .terraform
+
+terraform scan results:
+
+Passed checks: 15, Failed checks: 11, Skipped checks: 0
+
+Check: CKV_AWS_382: "Ensure no security groups allow egress from 0.0.0.0:0 to port -1"
+	FAILED for resource: aws_security_group.EC2_SG
+	File: /iam.tf:2-39
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/bc-aws-382
+Check: CKV_AWS_24: "Ensure no security groups allow ingress from 0.0.0.0:0 to port 22"
+	FAILED for resource: aws_security_group.EC2_SG
+	File: /iam.tf:2-39
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-1-port-security
+Check: CKV_AWS_23: "Ensure every security group and rule has a description"
+	FAILED for resource: aws_security_group.EC2_SG
+	File: /iam.tf:2-39
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-31
+Check: CKV_AWS_260: "Ensure no security groups allow ingress from 0.0.0.0:0 to port 80"
+	FAILED for resource: aws_security_group.EC2_SG
+	File: /iam.tf:2-39
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/ensure-aws-security-groups-do-not-allow-ingress-from-00000-to-port-80
+Check: CKV_AWS_79: "Ensure Instance Metadata Service Version 1 is not enabled"
+	FAILED for resource: aws_instance.project1_ec2_instance
+	File: /main.tf:18-28
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/bc-aws-general-31
+Check: CKV_AWS_126: "Ensure that detailed monitoring is enabled for EC2 instances"
+	FAILED for resource: aws_instance.project1_ec2_instance
+	File: /main.tf:18-28
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/ensure-that-detailed-monitoring-is-enabled-for-ec2-instances
+Check: CKV_AWS_135: "Ensure that EC2 is EBS optimized"
+	FAILED for resource: aws_instance.project1_ec2_instance
+	File: /main.tf:18-28
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-that-ec2-is-ebs-optimized
+Check: CKV_AWS_8: "Ensure all data stored in the Launch configuration or instance Elastic Blocks Store is securely encrypted"
+	FAILED for resource: aws_instance.project1_ec2_instance
+	File: /main.tf:18-28
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/general-13
+Check: CKV2_AWS_41: "Ensure an IAM role is attached to EC2 instance"
+	FAILED for resource: aws_instance.project1_ec2_instance
+	File: /main.tf:18-28
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/ensure-an-iam-role-is-attached-to-ec2-instance
+Check: CKV2_AWS_12: "Ensure the default security group of every VPC restricts all traffic"
+	FAILED for resource: aws_vpc.main
+	File: /vpc.tf:2-11
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-4
+Check: CKV2_AWS_11: "Ensure VPC flow logging is enabled in all VPCs"
+	FAILED for resource: aws_vpc.main
+	File: /vpc.tf:2-11
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/logging-9-enable-vpc-flow-logging
+
+
+exit code: 1
+
+--- terraform fmt -check -recursive
+main.tf
+vpc.tf
+exit code: 3
+
+--- terraform init -backend=false && terraform validate
+Success! The configuration is valid.
+exit code: 0
+
+============================================================================
+AFTER (security-gate branch)
+============================================================================
+
+--- ./scan.sh
+### Gated scan: 16 checks from checks.txt
+
+terraform scan results:
+
+Passed checks: 5, Failed checks: 0, Skipped checks: 0
+
+
+
+OK    0 gated checks failed.
+exit code: 0
+
+--- ./scan.sh --full
+### Unfiltered scan: every checkov policy, gating on none
+
+terraform scan results:
+
+Passed checks: 21, Failed checks: 5, Skipped checks: 0
+
+Check: CKV_AWS_260: "Ensure no security groups allow ingress from 0.0.0.0:0 to port 80"
+	FAILED for resource: aws_security_group.EC2_SG
+	File: /iam.tf:4-58
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/ensure-aws-security-groups-do-not-allow-ingress-from-00000-to-port-80
+Check: CKV_AWS_135: "Ensure that EC2 is EBS optimized"
+	FAILED for resource: aws_instance.project1_ec2_instance
+	File: /main.tf:18-51
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-that-ec2-is-ebs-optimized
+Check: CKV2_AWS_41: "Ensure an IAM role is attached to EC2 instance"
+	FAILED for resource: aws_instance.project1_ec2_instance
+	File: /main.tf:18-51
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/ensure-an-iam-role-is-attached-to-ec2-instance
+Check: CKV2_AWS_12: "Ensure the default security group of every VPC restricts all traffic"
+	FAILED for resource: aws_vpc.main
+	File: /vpc.tf:2-11
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-4
+Check: CKV2_AWS_11: "Ensure VPC flow logging is enabled in all VPCs"
+	FAILED for resource: aws_vpc.main
+	File: /vpc.tf:2-11
+	Guide: https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/logging-9-enable-vpc-flow-logging
+
+exit code: 0
+
+--- terraform fmt -check -recursive
+exit code: 0
+
+--- terraform validate
+Success! The configuration is valid.
+exit code: 0
+
+--- terraform plan -var admin_cidr=0.0.0.0/0   (must be refused)
+
+Error: Invalid value for variable
+
+  on variables.tf line 7:
+   7: variable "admin_cidr" {
+    ├────────────────
+    │ var.admin_cidr is "0.0.0.0/0"
+
+admin_cidr must be a valid IPv4 CIDR and must not be 0.0.0.0/0. Use your own
+address as a /32.
+
+This was checked by the validation rule at variables.tf:11,3-13.
+exit code: 1
+
+--- terraform plan -var admin_cidr=not-a-cidr   (must be refused)
+
+Error: Invalid value for variable
+
+  on variables.tf line 7:
+   7: variable "admin_cidr" {
+    ├────────────────
+    │ var.admin_cidr is "not-a-cidr"
+
+admin_cidr must be a valid IPv4 CIDR and must not be 0.0.0.0/0. Use your own
+address as a /32.
+
+This was checked by the validation rule at variables.tf:11,3-13.
+exit code: 1
+
+--- terraform plan -var-file=example.tfvars   (must be accepted; not applied)
+Plan: 13 to add, 0 to change, 0 to destroy.
+exit code: 0
+
+Lines from that plan for the attributes the gate cares about:
+89:      + monitoring                           = true
+134:          + http_put_response_hop_limit = 1
+135:          + http_tokens                 = "required"
+148:          + encrypted             = true
+329:                  + "203.0.113.10/32",
