@@ -211,7 +211,10 @@ exit 0
 
 Terraform 1.15.8 · checkov 3.3.16 (pinned in `scan.sh`) · Docker 29.7.2 · macOS 14 arm64
 · AWS provider 6.61.0, locked for `linux_amd64`, `darwin_arm64` and `darwin_amd64`
-so CI and a laptop run `init` against the same lock file without `-upgrade`.
+so CI and a laptop run `init` against the same lock file without `-upgrade`. A
+fourth hash, `linux_arm64`, was added by `make validate` itself: the Terraform
+image on an Apple Silicon host is a Linux arm64 binary, and `init` records the
+hash for whatever platform it runs on.
 
 ## Notes and gotchas
 
